@@ -18,6 +18,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -46,6 +48,11 @@ public class ProductService {
         product.setDiscount(dto.getDiscount() != null ? dto.getDiscount() : 0.0);
         product.setBrand(dto.getBrand());
         product.setStatus(ProductStatus.ACTIVE);
+        product.setViewCount(0);
+        product.setSalesCount(0);
+        product.setRating(0.0);
+        product.setCreatedAt(LocalDateTime.now());
+        product.setUpdatedAt(LocalDateTime.now());
 
         // Handle specifications
         if (dto.getSpecifications() != null && !dto.getSpecifications().isEmpty()) {
@@ -83,6 +90,14 @@ public class ProductService {
         dto.setDescription(product.getDescription());
         dto.setPrice(product.getPrice());
         dto.setStock(product.getStock());
+        dto.setDiscount(product.getDiscount());
+        dto.setBrand(product.getBrand());
+        dto.setStatus(product.getStatus());
+        dto.setViewCount(product.getViewCount());
+        dto.setSalesCount(product.getSalesCount());
+        dto.setRating(product.getRating());
+        dto.setCreatedAt(product.getCreatedAt());
+        dto.setUpdatedAt(product.getUpdatedAt());
 
         // Map images
         if (product.getImages() != null && !product.getImages().isEmpty()) {
@@ -94,14 +109,9 @@ public class ProductService {
             dto.setImages(new ArrayList<>());
         }
 
-        dto.setDiscount(product.getDiscount());
-        dto.setBrand(product.getBrand());
         dto.setCategoryName(product.getCategory() != null ? product.getCategory().getName() : null);
-        dto.setStatus(product.getStatus());
         dto.setVendorId(product.getVendor() != null ? product.getVendor().getId() : null);
         dto.setVendorName(product.getVendor() != null ? product.getVendor().getShopName() : null);
-        dto.setCreatedAt(product.getCreatedAt());
-        dto.setUpdatedAt(product.getUpdatedAt());
         dto.setSubCategoryName(product.getSubCategory() != null ? product.getSubCategory().getName() : null);
 
         // Handle specifications
@@ -218,6 +228,7 @@ public class ProductService {
             existing.setCategory(category);
             existing.setDiscount(dto.getDiscount() != null ? dto.getDiscount() : existing.getDiscount());
             existing.setBrand(dto.getBrand() != null ? dto.getBrand() : existing.getBrand());
+            existing.setUpdatedAt(LocalDateTime.now());
 
             // Update sub-category
             if (dto.getSubCategoryId() != null) {
@@ -337,22 +348,11 @@ public class ProductService {
         }
     }
 
-    public Page<ProductResponseDTO> getProductsByStatus(ProductStatus status, Pageable pageable) {
-        try {
-            Page<Product> statusProducts = productRepo.findByStatus(status, pageable);
-            return statusProducts.map(this::toDto);
-        } catch (Exception ex) {
-            throw new OperationFailedException("Retrieve products by status paginated", ex.getMessage());
-        }
-    }
-
     // ==================== SEARCH & FILTER ENDPOINTS ====================
 
     public List<ProductResponseDTO> searchProducts(String keyword) {
         try {
-            List<Product> products = productRepo.findByNameContainingIgnoreCaseOrDescriptionContainingIgnoreCaseOrBrandContainingIgnoreCase(
-                    keyword, keyword, keyword
-            );
+            List<Product> products = productRepo.searchProducts(keyword);
             return products.stream()
                     .map(this::toDto)
                     .collect(Collectors.toList());
@@ -363,53 +363,46 @@ public class ProductService {
 
     public Page<ProductResponseDTO> searchProducts(String keyword, Pageable pageable) {
         try {
-            Page<Product> products = productRepo.findByNameContainingIgnoreCaseOrDescriptionContainingIgnoreCaseOrBrandContainingIgnoreCase(
-                    keyword, keyword, keyword, pageable
-            );
+            Page<Product> products = productRepo.searchProducts(keyword, pageable);
             return products.map(this::toDto);
         } catch (Exception ex) {
             throw new OperationFailedException("Search products paginated", ex.getMessage());
         }
     }
 
-    public List<ProductResponseDTO> filterProducts(Long categoryId, Long subCategoryId,
-                                                   Double minPrice, Double maxPrice, String brand) {
+    // ✅ UPDATED: Filter products with pagination
+    public Page<ProductResponseDTO> filterProducts(
+            Long categoryId,
+            Long subCategoryId,
+            Double minPrice,
+            Double maxPrice,
+            String brand,
+            Double minRating,
+            Boolean inStock,
+            Pageable pageable) {
         try {
-            List<Product> products = productRepo.findByFilters(
-                    categoryId, subCategoryId, minPrice, maxPrice, brand, ProductStatus.ACTIVE
-            );
-            return products.stream()
-                    .map(this::toDto)
-                    .collect(Collectors.toList());
+            Page<Product> products = productRepo.findByFilters(
+                    categoryId, subCategoryId, minPrice, maxPrice,
+                    brand, minRating, inStock, pageable);
+            return products.map(this::toDto);
         } catch (Exception ex) {
             throw new OperationFailedException("Filter products", ex.getMessage());
         }
     }
 
-    public Page<ProductResponseDTO> filterProducts(Long categoryId, Long subCategoryId,
-                                                   Double minPrice, Double maxPrice, String brand,
-                                                   ProductStatus status, Pageable pageable) {
+    // ✅ Advanced filtering with all parameters
+    public Page<ProductResponseDTO> filterProductsAdvanced(
+            Long categoryId, Long subCategoryId, Long vendorId,
+            BigDecimal minPrice, BigDecimal maxPrice, String brand,
+            ProductStatus status, Boolean inStock, Boolean featured,
+            Double minRating, Pageable pageable) {
         try {
-            // For paginated filtering, we need to implement a custom method or use specification
-            // For now, let's get all and paginate manually (not efficient for large datasets)
-            List<Product> products = productRepo.findByFilters(
-                    categoryId, subCategoryId, minPrice, maxPrice, brand, status
-            );
-
-            // Manual pagination (consider implementing proper JPA Specification for better performance)
-            int start = (int) pageable.getOffset();
-            int end = Math.min((start + pageable.getPageSize()), products.size());
-            List<Product> paginatedProducts = products.subList(start, end);
-
-            List<ProductResponseDTO> dtos = paginatedProducts.stream()
-                    .map(this::toDto)
-                    .collect(Collectors.toList());
-
-            return new org.springframework.data.domain.PageImpl<>(
-                    dtos, pageable, products.size()
-            );
+            Page<Product> products = productRepo.findByAdvancedFilters(
+                    categoryId, subCategoryId, vendorId, minPrice, maxPrice, brand,
+                    status, inStock, featured, minRating, pageable);
+            return products.map(this::toDto);
         } catch (Exception ex) {
-            throw new OperationFailedException("Filter products paginated", ex.getMessage());
+            throw new OperationFailedException("Advanced filter products", ex.getMessage());
         }
     }
 
@@ -420,7 +413,6 @@ public class ProductService {
             List<Product> products = productRepo.findTrendingProducts(limit);
             return products.stream().map(this::toDto).collect(Collectors.toList());
         } catch (Exception ex) {
-            // Fallback to active products
             return getFallbackProducts(limit);
         }
     }
@@ -464,6 +456,7 @@ public class ProductService {
                     .orElseThrow(() -> new ResourceNotFoundException("Product", "id", id));
 
             product.setStatus(newStatus);
+            product.setUpdatedAt(LocalDateTime.now());
             Product updated = productRepo.save(product);
             return toDto(updated);
         } catch (Exception ex) {
@@ -471,20 +464,12 @@ public class ProductService {
         }
     }
 
-    // ==================== ADDITIONAL UTILITY METHODS ====================
+    // ==================== UTILITY METHODS ====================
 
     public List<ProductResponseDTO> getProductsBySubCategory(Long subCategoryId) {
         try {
-            if (!subCategoryRepo.existsById(subCategoryId)) {
-                throw new ResourceNotFoundException("SubCategory", "id", subCategoryId);
-            }
-
-            List<Product> allProducts = productRepo.findAll();
-            return allProducts.stream()
-                    .filter(product -> product.getSubCategory() != null &&
-                            product.getSubCategory().getId().equals(subCategoryId))
-                    .map(this::toDto)
-                    .collect(Collectors.toList());
+            List<Product> products = productRepo.findBySubCategoryId(subCategoryId);
+            return products.stream().map(this::toDto).collect(Collectors.toList());
         } catch (Exception ex) {
             throw new OperationFailedException("Retrieve sub-category products", ex.getMessage());
         }
@@ -506,25 +491,66 @@ public class ProductService {
         }
     }
 
-    public List<ProductResponseDTO> getFeaturedProductsByCategory(Long categoryId) {
-        try {
-            List<Product> products = productRepo.findByIsFeaturedTrueAndStatus(ProductStatus.ACTIVE);
-            return products.stream()
-                    .filter(product -> product.getCategory() != null &&
-                            product.getCategory().getId().equals(categoryId))
-                    .map(this::toDto)
-                    .collect(Collectors.toList());
-        } catch (Exception ex) {
-            throw new OperationFailedException("Get featured products by category", ex.getMessage());
-        }
-    }
-
     @Transactional
     public void incrementSalesCount(Long productId, int quantity) {
         try {
             productRepo.incrementSalesCount(productId, quantity);
         } catch (Exception ex) {
             throw new OperationFailedException("Increment sales count", ex.getMessage());
+        }
+    }
+
+    // ✅ UPDATED: incrementProductViews method
+    @Transactional
+    public void incrementProductViews(Long productId) {
+        try {
+            productRepo.incrementViewCount(productId);
+        } catch (Exception ex) {
+            throw new OperationFailedException("Increment product views", ex.getMessage());
+        }
+    }
+
+    public Object[] getPriceRange(Long categoryId) {
+        try {
+            return productRepo.findPriceRange(categoryId);
+        } catch (Exception ex) {
+            throw new OperationFailedException("Get price range", ex.getMessage());
+        }
+    }
+
+    public List<String> getAvailableBrands(Long categoryId) {
+        try {
+            return productRepo.findAvailableBrands(categoryId);
+        } catch (Exception ex) {
+            throw new OperationFailedException("Get available brands", ex.getMessage());
+        }
+    }
+
+    // ✅ Similar products recommendation
+    public List<ProductResponseDTO> getSimilarProducts(Long productId, int limit) {
+        try {
+            Product currentProduct = productRepo.findById(productId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Product", "id", productId));
+
+            Pageable pageable = PageRequest.of(0, limit);
+            List<Product> similarProducts = productRepo.findSimilarProducts(
+                    currentProduct.getCategory().getId(),
+                    productId,
+                    currentProduct.getBrand(),
+                    pageable
+            );
+            return similarProducts.stream().map(this::toDto).collect(Collectors.toList());
+        } catch (Exception ex) {
+            return getFallbackProducts(limit);
+        }
+    }
+
+    // ✅ Check if product belongs to vendor
+    public boolean isProductOwner(Long productId, Long vendorId) {
+        try {
+            return productRepo.existsByIdAndVendorId(productId, vendorId);
+        } catch (Exception ex) {
+            return false;
         }
     }
 }

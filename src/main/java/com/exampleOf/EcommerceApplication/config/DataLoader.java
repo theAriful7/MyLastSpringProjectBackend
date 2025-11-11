@@ -7,6 +7,7 @@ import com.exampleOf.EcommerceApplication.service.VendorService;
 import com.exampleOf.EcommerceApplication.dto.VendorDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -15,6 +16,7 @@ public class DataLoader implements CommandLineRunner {
 
     private final UserService userService;
     private final VendorService vendorService;
+    private final PasswordEncoder passwordEncoder; // Added this line
 
     @Override
     public void run(String... args) throws Exception {

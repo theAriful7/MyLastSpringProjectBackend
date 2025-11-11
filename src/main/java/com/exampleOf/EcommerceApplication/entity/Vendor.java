@@ -4,6 +4,7 @@ import com.exampleOf.EcommerceApplication.enums.VendorStatus;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.Setter;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,6 +12,7 @@ import java.util.List;
 @Entity
 @Table(name = "vendors")
 @Data
+@EntityListeners(AuditingEntityListener.class)
 public class Vendor {
     // Getters and Setters
     @Setter
@@ -33,7 +35,7 @@ public class Vendor {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private VendorStatus vendorStatus;
+    private VendorStatus vendorStatus = VendorStatus.PENDING_APPROVAL;
 
     @OneToMany(mappedBy = "vendor")
     private List<Product> products = new ArrayList<>();
@@ -54,8 +56,6 @@ public class Vendor {
         this.shopName = shopName;
         this.user = user;
     }
-
-    public void setBusinessName(String businessName) { this.shopName = shopName; }
 
     public boolean isActive() {
         return this.vendorStatus == VendorStatus.ACTIVE;

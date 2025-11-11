@@ -30,4 +30,12 @@ public class ProductResponseDTO {
     private List<ProductSpecificationDTO> specifications;
 
 
+    public void setViewCount(Integer viewCount) {
+    }
+
+    public void setSalesCount(Integer salesCount) {
+    }
+
+    public void setRating(Double rating) {
+    }
 }

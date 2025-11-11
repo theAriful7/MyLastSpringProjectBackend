@@ -10,10 +10,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "product_specifications")
-public class ProductSpecification {
-    @Id // Primary key
-    @GeneratedValue(strategy = GenerationType.IDENTITY) // Auto-increment
-    private Long id;
+public class ProductSpecification extends Base{
 
     @Column(name = "spec_key", nullable = false) // Column name in database
     private String key; // Example: "color", "size", "weight"

@@ -40,7 +40,7 @@ public class VendorServiceImpl implements VendorService {
         }
 
         Vendor vendor = new Vendor();
-        vendor.setShopName(vendor.getShopName());
+        vendor.setShopName(vendorDto.getShopName());
         vendor.setBusinessDescription(vendorDto.getBusinessDescription());
         vendor.setTaxNumber(vendorDto.getTaxNumber());
         vendor.setAddress(vendorDto.getAddress());
@@ -89,7 +89,7 @@ public class VendorServiceImpl implements VendorService {
         Vendor vendor = getVendorById(id);
 
         if (vendorDto.getShopName() != null) {
-            vendor.setBusinessName(vendorDto.getShopName());
+            vendor.setShopName(vendorDto.getShopName());
         }
         if (vendorDto.getBusinessDescription() != null) {
             vendor.setBusinessDescription(vendorDto.getBusinessDescription());

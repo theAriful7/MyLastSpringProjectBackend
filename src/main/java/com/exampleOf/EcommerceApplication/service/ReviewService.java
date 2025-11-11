@@ -48,9 +48,10 @@ public class ReviewService {
                 throw new ValidationException("comment", "Comment is required");
             }
 
-            // Check if user already reviewed this product
-            boolean alreadyReviewed = reviewRepo.findByUserId(dto.getUserId()).stream()
-                    .anyMatch(review -> review.getProduct().getId().equals(dto.getProductId()));
+            // ✅ UPDATED: Use efficient repository method for duplicate check
+            boolean alreadyReviewed = reviewRepo.existsByUserIdAndProductIdAndIsActiveTrue(
+                    dto.getUserId(), dto.getProductId()
+            );
 
             if (alreadyReviewed) {
                 throw new OperationFailedException(
@@ -97,9 +98,9 @@ public class ReviewService {
                 throw new ResourceNotFoundException("Product", "id", productId);
             }
 
-            return reviewRepo.findByProductId(productId)
+            // ✅ UPDATED: Use repository method that filters active reviews
+            return reviewRepo.findByProductIdAndIsActiveTrue(productId)
                     .stream()
-                    .filter(Review::getIsActive) // Only active reviews
                     .map(this::convertToResponse)
                     .collect(Collectors.toList());
         } catch (Exception ex) {
@@ -115,9 +116,9 @@ public class ReviewService {
                 throw new ResourceNotFoundException("User", "id", userId);
             }
 
-            return reviewRepo.findByUserId(userId)
+            // ✅ UPDATED: Use repository method that filters active reviews
+            return reviewRepo.findByUserIdAndIsActiveTrue(userId)
                     .stream()
-                    .filter(Review::getIsActive) // Only active reviews
                     .map(this::convertToResponse)
                     .collect(Collectors.toList());
         } catch (Exception ex) {
@@ -188,23 +189,91 @@ public class ReviewService {
     // ✅ Get Product Average Rating
     public Double getProductAverageRating(Long productId) {
         try {
-            List<Review> activeReviews = reviewRepo.findByProductId(productId)
-                    .stream()
-                    .filter(Review::getIsActive)
-                    .collect(Collectors.toList());
-
-            if (activeReviews.isEmpty()) {
-                return 0.0;
-            }
-
-            double average = activeReviews.stream()
-                    .mapToInt(Review::getRating)
-                    .average()
-                    .orElse(0.0);
-
-            return Math.round(average * 10.0) / 10.0; // Round to 1 decimal
+            // ✅ UPDATED: Use direct repository method for average calculation
+            Double average = reviewRepo.findAverageRatingByProductId(productId);
+            return average != null ? Math.round(average * 10.0) / 10.0 : 0.0; // Round to 1 decimal
         } catch (Exception ex) {
             throw new OperationFailedException("Calculate average rating", ex.getMessage());
+        }
+    }
+
+    // ✅ NEW: Get Recent Reviews for Product
+    public List<ReviewResponseDTO> getRecentReviewsByProduct(Long productId, int limit) {
+        try {
+            // Verify product exists
+            if (!productRepo.existsById(productId)) {
+                throw new ResourceNotFoundException("Product", "id", productId);
+            }
+
+            List<Review> recentReviews = reviewRepo.findTop5ByProductIdOrderByCreatedAtDesc(productId);
+            return recentReviews.stream()
+                    .map(this::convertToResponse)
+                    .collect(Collectors.toList());
+        } catch (Exception ex) {
+            throw new OperationFailedException("Retrieve recent reviews", ex.getMessage());
+        }
+    }
+
+    // ✅ NEW: Get Reviews by Rating
+    public List<ReviewResponseDTO> getReviewsByRating(Long productId, Integer rating) {
+        try {
+            // Verify product exists
+            if (!productRepo.existsById(productId)) {
+                throw new ResourceNotFoundException("Product", "id", productId);
+            }
+            // Validate rating
+            if (rating < 1 || rating > 5) {
+                throw new ValidationException("rating", "Rating must be between 1 and 5");
+            }
+
+            List<Review> reviews = reviewRepo.findByProductIdAndRating(productId, rating);
+            return reviews.stream()
+                    .map(this::convertToResponse)
+                    .collect(Collectors.toList());
+        } catch (Exception ex) {
+            throw new OperationFailedException("Retrieve reviews by rating", ex.getMessage());
+        }
+    }
+
+    // ✅ NEW: Get Review Statistics
+    public ReviewStatsDTO getReviewStatistics(Long productId) {
+        try {
+            // Verify product exists
+            if (!productRepo.existsById(productId)) {
+                throw new ResourceNotFoundException("Product", "id", productId);
+            }
+
+            ReviewStatsDTO stats = new ReviewStatsDTO();
+            stats.setTotalReviews(reviewRepo.countByProductIdAndIsActiveTrue(productId));
+            stats.setAverageRating(getProductAverageRating(productId));
+
+            // Get rating distribution
+            List<Object[]> distribution = reviewRepo.findRatingDistributionByProductId(productId);
+            // Process distribution data as needed
+
+            return stats;
+        } catch (Exception ex) {
+            throw new OperationFailedException("Get review statistics", ex.getMessage());
+        }
+    }
+
+    // ✅ NEW: Get User's Review for Product
+    public ReviewResponseDTO getUserReviewForProduct(Long userId, Long productId) {
+        try {
+            Review review = reviewRepo.findByUserIdAndProductId(userId, productId)
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Review", "user and product", "User ID: " + userId + ", Product ID: " + productId
+                    ));
+
+            if (!review.getIsActive()) {
+                throw new ResourceNotFoundException(
+                        "Review", "user and product", "User ID: " + userId + ", Product ID: " + productId
+                );
+            }
+
+            return convertToResponse(review);
+        } catch (Exception ex) {
+            throw new OperationFailedException("Get user review for product", ex.getMessage());
         }
     }
 
@@ -233,6 +302,31 @@ public class ReviewService {
         dto.setUserName(review.getUser().getFirstName());
         dto.setProductName(review.getProduct().getName());
         dto.setIsActive(review.getIsActive());
+        dto.setCreatedAt(review.getCreatedAt());
+        dto.setUpdatedAt(review.getUpdatedAt());
         return dto;
+    }
+
+    // ✅ NEW: DTO for Review Statistics
+    public static class ReviewStatsDTO {
+        private Long totalReviews;
+        private Double averageRating;
+
+        // Getters and setters
+        public Long getTotalReviews() {
+            return totalReviews;
+        }
+
+        public void setTotalReviews(Long totalReviews) {
+            this.totalReviews = totalReviews;
+        }
+
+        public Double getAverageRating() {
+            return averageRating;
+        }
+
+        public void setAverageRating(Double averageRating) {
+            this.averageRating = averageRating;
+        }
     }
 }

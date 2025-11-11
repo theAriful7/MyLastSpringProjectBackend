@@ -6,6 +6,7 @@ import com.exampleOf.EcommerceApplication.dto.AuthResponse;
 import com.exampleOf.EcommerceApplication.dto.UserDto;
 import com.exampleOf.EcommerceApplication.entity.User;
 import com.exampleOf.EcommerceApplication.service.UserService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -24,7 +25,7 @@ public class AuthController {
     private final UserService userService;
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@RequestBody AuthRequest request) {
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody AuthRequest request) {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                         request.getEmail(),
@@ -42,14 +43,14 @@ public class AuthController {
                 .email(userDetails.getEmail())
                 .role(userDetails.getRole())
                 .firstName(userDetails.getFirstName())
+                .userId(userDetails.getId()) // ✅ Added user ID for frontend
                 .message("Login successful")
                 .build());
     }
 
     @PostMapping("/register")
-    public ResponseEntity<AuthResponse> register(@RequestBody UserDto userDto) {
+    public ResponseEntity<AuthResponse> register(@Valid @RequestBody UserDto userDto) {
         User user = userService.registerUser(userDto);
-
         String jwtToken = jwtService.generateToken(user);
 
         return ResponseEntity.ok(AuthResponse.builder()
@@ -57,6 +58,7 @@ public class AuthController {
                 .email(user.getEmail())
                 .role(user.getRole())
                 .firstName(user.getFirstName())
+                .userId(user.getId()) // ✅ Added user ID
                 .message("Registration successful")
                 .build());
     }
@@ -67,15 +69,42 @@ public class AuthController {
             String jwt = token.substring(7);
             String username = jwtService.extractUsername(jwt);
 
-            // Use getUserByEmail instead of loadUserByUsername
+            // ✅ Use getUserByEmail instead of loadUserByUsername
             User user = userService.getUserByEmail(username);
 
-            // Convert User to UserDetails for validation
+            // ✅ Convert User to UserDetails for validation
             UserDetails userDetails = (UserDetails) user;
 
             return ResponseEntity.ok(jwtService.isTokenValid(jwt, userDetails));
         } catch (Exception e) {
             return ResponseEntity.ok(false);
+        }
+    }
+
+    // ✅ NEW: Refresh token endpoint
+    @PostMapping("/refresh")
+    public ResponseEntity<AuthResponse> refreshToken(@RequestHeader("Authorization") String token) {
+        try {
+            String jwt = token.substring(7);
+            String username = jwtService.extractUsername(jwt);
+
+            User user = userService.getUserByEmail(username);
+            String newToken = jwtService.generateToken(user);
+
+            return ResponseEntity.ok(AuthResponse.builder()
+                    .token(newToken)
+                    .email(user.getEmail())
+                    .role(user.getRole())
+                    .firstName(user.getFirstName())
+                    .userId(user.getId())
+                    .message("Token refreshed successfully")
+                    .build());
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(
+                    AuthResponse.builder()
+                            .message("Invalid or expired token")
+                            .build()
+            );
         }
     }
 }
