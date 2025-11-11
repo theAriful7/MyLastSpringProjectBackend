@@ -2,6 +2,8 @@ package com.exampleOf.EcommerceApplication.controller;
 
 import com.exampleOf.EcommerceApplication.dto.requestdto.PaymentRequestDTO;
 import com.exampleOf.EcommerceApplication.dto.responsedto.PaymentResponseDTO;
+import com.exampleOf.EcommerceApplication.enums.PaymentMethod;
+import com.exampleOf.EcommerceApplication.enums.PaymentOption;
 import com.exampleOf.EcommerceApplication.enums.PaymentStatus;
 import com.exampleOf.EcommerceApplication.service.PaymentService;
 import lombok.RequiredArgsConstructor;
@@ -16,8 +18,6 @@ import java.util.List;
 //@CrossOrigin(origins = "http://localhost:4200")
 @RequiredArgsConstructor
 public class PaymentController {
-
-
     private final PaymentService paymentService;
 
     // ✅ Create Payment - HTTP 201
@@ -51,7 +51,18 @@ public class PaymentController {
         return ResponseEntity.ok(paymentService.getPaymentsByStatus(status));
     }
 
-    // ✅ Update Payment Status - HTTP 200
+    // ✅ Get Payments by Method - HTTP 200
+    @GetMapping("/method/{method}")
+    public ResponseEntity<List<PaymentResponseDTO>> getPaymentsByMethod(@PathVariable PaymentMethod method) {
+        return ResponseEntity.ok(paymentService.getPaymentsByMethod(method));
+    }
+
+
+    @GetMapping("/option/{option}")
+    public ResponseEntity<List<PaymentResponseDTO>> getPaymentsByOption(@PathVariable PaymentOption option) {
+        return ResponseEntity.ok(paymentService.getPaymentsByOption(option));
+    }
+
     @PutMapping("/{id}/status")
     public ResponseEntity<PaymentResponseDTO> updatePaymentStatus(
             @PathVariable Long id,

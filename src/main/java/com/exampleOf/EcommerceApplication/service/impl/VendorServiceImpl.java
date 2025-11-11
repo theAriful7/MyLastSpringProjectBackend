@@ -4,6 +4,7 @@ import com.exampleOf.EcommerceApplication.dto.VendorDto;
 import com.exampleOf.EcommerceApplication.entity.User;
 import com.exampleOf.EcommerceApplication.enums.UserRole;
 import com.exampleOf.EcommerceApplication.entity.Vendor;
+import com.exampleOf.EcommerceApplication.enums.VendorStatus;
 import com.exampleOf.EcommerceApplication.repository.VendorRepository;
 import com.exampleOf.EcommerceApplication.service.UserService;
 import com.exampleOf.EcommerceApplication.service.VendorService;
@@ -81,6 +82,7 @@ public class VendorServiceImpl implements VendorService {
     public Vendor approveVendor(Long vendorId) {
         Vendor vendor = getVendorById(vendorId);
         vendor.setApproved(true);
+        vendor.setVendorStatus(VendorStatus.ACTIVE);
         return vendorRepository.save(vendor);
     }
 

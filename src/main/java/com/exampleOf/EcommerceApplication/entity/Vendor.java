@@ -1,6 +1,7 @@
 package com.exampleOf.EcommerceApplication.entity;
 
 import com.exampleOf.EcommerceApplication.enums.VendorStatus;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.Setter;
@@ -47,6 +48,7 @@ public class Vendor {
     @Setter
     @OneToOne
     @JoinColumn(name = "user_id", nullable = false)
+    @JsonIgnore
     private User user;
 
     // Constructors

@@ -1,20 +1,22 @@
 package com.exampleOf.EcommerceApplication.dto.responsedto;
 
 
+import com.exampleOf.EcommerceApplication.enums.OnlinePaymentType;
+import com.exampleOf.EcommerceApplication.enums.PaymentMethod;
 import com.exampleOf.EcommerceApplication.enums.PaymentStatus;
 import lombok.Data;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-
 @Data
 public class PaymentResponseDTO {
 
-    private Long id;                      // Payment এর unique ID
-    private Long orderId;                 // Payment কোন Order এর জন্য
-    private BigDecimal amount;            // Payment amount
-    private String paymentMethod;         // Payment method
-    private PaymentStatus paymentStatus;  // Enum type
+    private Long id;
+    private Long orderId;
+    private BigDecimal amount;
+    private PaymentMethod paymentMethod;
+    private OnlinePaymentType onlinePaymentType;
+    private PaymentStatus paymentStatus;
+    private String transactionId;
     private LocalDateTime paymentDate;
 
 }

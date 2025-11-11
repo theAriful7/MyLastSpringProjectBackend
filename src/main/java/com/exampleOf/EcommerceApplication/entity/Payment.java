@@ -1,6 +1,9 @@
 package com.exampleOf.EcommerceApplication.entity;
 
 
+import com.exampleOf.EcommerceApplication.enums.OnlinePaymentType;
+import com.exampleOf.EcommerceApplication.enums.PaymentMethod;
+import com.exampleOf.EcommerceApplication.enums.PaymentOption;
 import com.exampleOf.EcommerceApplication.enums.PaymentStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -26,15 +29,24 @@ public class Payment extends Base{
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal amount;
 
+    // ✅ Changed from String → Enum
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String paymentMethod;
+    private PaymentMethod paymentMethod;
+
+    @Enumerated(EnumType.STRING)
+    private PaymentOption paymentOption;
+
+    // ✅ Only used when paymentMethod == ONLINE_PAYMENT
+    @Enumerated(EnumType.STRING)
+    private OnlinePaymentType onlinePaymentType;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private PaymentStatus paymentStatus = PaymentStatus.PENDING;
 
     @Column(name = "transaction_id")
-    private String transactionId; // For payment gateway reference
+    private String transactionId; // For online payment reference
 
     private LocalDateTime paymentDate;
 

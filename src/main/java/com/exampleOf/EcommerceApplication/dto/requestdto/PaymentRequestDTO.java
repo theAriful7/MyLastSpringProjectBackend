@@ -1,5 +1,7 @@
 package com.exampleOf.EcommerceApplication.dto.requestdto;
 
+import com.exampleOf.EcommerceApplication.enums.OnlinePaymentType;
+import com.exampleOf.EcommerceApplication.enums.PaymentMethod;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -9,6 +11,7 @@ import java.math.BigDecimal;
 
 @Data
 public class PaymentRequestDTO {
+
     @NotNull(message = "Order ID is required")
     private Long orderId;
 
@@ -16,6 +19,11 @@ public class PaymentRequestDTO {
     @DecimalMin(value = "0.01", message = "Amount must be greater than 0")
     private BigDecimal amount;
 
-    @NotBlank(message = "Payment method is required")
-    private String paymentMethod;
+    @NotNull(message = "Payment method is required")
+    private PaymentMethod paymentMethod;
+
+    private OnlinePaymentType onlinePaymentType;
+
+    private String transactionId;
+
 }

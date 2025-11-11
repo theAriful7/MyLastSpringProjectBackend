@@ -144,6 +144,8 @@ public class OrderService {
         Order order = new Order();
         order.setUser(user);
         order.setShippingAddress(address);
+        order.setCreatedAt(dto.getCreatedAt());
+        order.setUpdatedAt(dto.getUpdatedAt());
         order.setStatus(OrderStatus.PENDING);
 
         BigDecimal totalAmount = BigDecimal.ZERO;

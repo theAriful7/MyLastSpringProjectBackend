@@ -8,6 +8,8 @@ import com.exampleOf.EcommerceApplication.dto.requestdto.PaymentRequestDTO;
 import com.exampleOf.EcommerceApplication.dto.responsedto.PaymentResponseDTO;
 import com.exampleOf.EcommerceApplication.entity.Order;
 import com.exampleOf.EcommerceApplication.entity.Payment;
+import com.exampleOf.EcommerceApplication.enums.PaymentMethod;
+import com.exampleOf.EcommerceApplication.enums.PaymentOption;
 import com.exampleOf.EcommerceApplication.enums.PaymentStatus;
 import com.exampleOf.EcommerceApplication.repository.OrderRepo;
 import com.exampleOf.EcommerceApplication.repository.PaymentRepo;
@@ -27,9 +29,8 @@ public class PaymentService {
     private final PaymentRepo paymentRepo;
     private final OrderRepo orderRepo;
 
-    // ✅ DTO → Entity with validation
+
     public Payment toEntity(PaymentRequestDTO dto) {
-        // Validate order exists
         Order order = orderRepo.findById(dto.getOrderId())
                 .orElseThrow(() -> new ResourceNotFoundException("Order", "id", dto.getOrderId()));
 
@@ -39,44 +40,51 @@ public class PaymentService {
         }
 
         // Validate payment method
-        if (dto.getPaymentMethod() == null || dto.getPaymentMethod().trim().isEmpty()) {
+        if (dto.getPaymentMethod() == null) {
             throw new ValidationException("paymentMethod", "Payment method is required");
+        }
+
+        // If Online Payment, must include type
+        if (dto.getPaymentMethod() == PaymentMethod.ONLINE_PAYMENT && dto.getOnlinePaymentType() == null) {
+            throw new ValidationException("onlinePaymentType", "Online payment type is required when method is ONLINE_PAYMENT");
         }
 
         Payment payment = new Payment();
         payment.setOrder(order);
         payment.setAmount(dto.getAmount());
-        payment.setPaymentMethod(dto.getPaymentMethod().trim());
+        payment.setPaymentMethod(dto.getPaymentMethod());
+        payment.setOnlinePaymentType(dto.getOnlinePaymentType());
+        payment.setTransactionId(dto.getTransactionId());
         payment.setPaymentStatus(PaymentStatus.PENDING);
         payment.setPaymentDate(LocalDateTime.now());
+
         return payment;
     }
 
-    // ✅ Entity → DTO
+
     public PaymentResponseDTO toDto(Payment payment) {
         PaymentResponseDTO dto = new PaymentResponseDTO();
         dto.setId(payment.getId());
         dto.setOrderId(payment.getOrder().getId());
         dto.setAmount(payment.getAmount());
         dto.setPaymentMethod(payment.getPaymentMethod());
+        dto.setOnlinePaymentType(payment.getOnlinePaymentType());
         dto.setPaymentStatus(payment.getPaymentStatus());
+        dto.setTransactionId(payment.getTransactionId());
         dto.setPaymentDate(payment.getPaymentDate());
         return dto;
     }
 
-    // ✅ Create Payment
+
     @Transactional
     public PaymentResponseDTO createPayment(PaymentRequestDTO dto) {
         try {
             // Check if payment already exists for this order
-            boolean paymentExists = paymentRepo.findAll().stream()
-                    .anyMatch(payment -> payment.getOrder().getId().equals(dto.getOrderId()));
+            boolean exists = paymentRepo.findAll().stream()
+                    .anyMatch(p -> p.getOrder().getId().equals(dto.getOrderId()));
 
-            if (paymentExists) {
-                throw new OperationFailedException(
-                        "Create payment",
-                        "Payment already exists for order ID: " + dto.getOrderId()
-                );
+            if (exists) {
+                throw new OperationFailedException("Create payment", "Payment already exists for this order");
             }
 
             Payment payment = toEntity(dto);
@@ -87,14 +95,14 @@ public class PaymentService {
         }
     }
 
-    // ✅ Get Payment by ID
+
     public PaymentResponseDTO getPaymentById(Long id) {
         Payment payment = paymentRepo.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Payment", "id", id));
         return toDto(payment);
     }
 
-    // ✅ Get Payment by Order ID
+
     public PaymentResponseDTO getPaymentByOrderId(Long orderId) {
         Payment payment = paymentRepo.findAll().stream()
                 .filter(p -> p.getOrder().getId().equals(orderId))
@@ -103,92 +111,86 @@ public class PaymentService {
         return toDto(payment);
     }
 
-    // ✅ Get All Payments
+
     public List<PaymentResponseDTO> getAllPayments() {
-        try {
-            return paymentRepo.findAll()
-                    .stream()
-                    .map(this::toDto)
-                    .collect(Collectors.toList());
-        } catch (Exception ex) {
-            throw new OperationFailedException("Retrieve all payments", ex.getMessage());
-        }
+        return paymentRepo.findAll()
+                .stream()
+                .map(this::toDto)
+                .collect(Collectors.toList());
     }
 
-    // ✅ Update Payment Status
     @Transactional
     public PaymentResponseDTO updatePaymentStatus(Long id, PaymentStatus status) {
-        try {
-            Payment payment = paymentRepo.findById(id)
-                    .orElseThrow(() -> new ResourceNotFoundException("Payment", "id", id));
+        Payment payment = paymentRepo.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Payment", "id", id));
 
-            payment.setPaymentStatus(status);
-
-            // If status is COMPLETED, update payment date
-            if (status == PaymentStatus.COMPLETED && payment.getPaymentDate() == null) {
-                payment.setPaymentDate(LocalDateTime.now());
-            }
-
-            Payment updated = paymentRepo.save(payment);
-            return toDto(updated);
-        } catch (Exception ex) {
-            throw new OperationFailedException("Update payment status", ex.getMessage());
-        }
-    }
-
-    // ✅ Process Payment (Complete payment process)
-    @Transactional
-    public PaymentResponseDTO processPayment(Long paymentId, String transactionId) {
-        try {
-            Payment payment = paymentRepo.findById(paymentId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Payment", "id", paymentId));
-
-            // Simulate payment processing logic
-            // In real app, you'd integrate with payment gateway here
-
-            payment.setPaymentStatus(PaymentStatus.COMPLETED);
+        payment.setPaymentStatus(status);
+        if (status == PaymentStatus.COMPLETED && payment.getPaymentDate() == null) {
             payment.setPaymentDate(LocalDateTime.now());
-
-            // You can store transaction ID if needed
-            // payment.setTransactionId(transactionId);
-
-            Payment processed = paymentRepo.save(payment);
-            return toDto(processed);
-        } catch (Exception ex) {
-            throw new OperationFailedException("Process payment", ex.getMessage());
         }
+
+        Payment updated = paymentRepo.save(payment);
+        return toDto(updated);
     }
 
-    // ✅ Get Payments by Status
+
+    @Transactional
+    public PaymentResponseDTO processPayment(Long id, String transactionId) {
+        Payment payment = paymentRepo.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Payment", "id", id));
+
+        payment.setPaymentStatus(PaymentStatus.COMPLETED);
+        payment.setTransactionId(transactionId);
+        payment.setPaymentDate(LocalDateTime.now());
+
+        Payment processed = paymentRepo.save(payment);
+        return toDto(processed);
+    }
+
+
     public List<PaymentResponseDTO> getPaymentsByStatus(PaymentStatus status) {
+        return paymentRepo.findAll()
+                .stream()
+                .filter(p -> p.getPaymentStatus() == status)
+                .map(this::toDto)
+                .collect(Collectors.toList());
+    }
+
+
+    @Transactional
+    public void deletePayment(Long id) {
+        Payment payment = paymentRepo.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Payment", "id", id));
+
+        if (payment.getPaymentStatus() == PaymentStatus.COMPLETED) {
+            throw new OperationFailedException("Delete payment", "Cannot delete completed payment");
+        }
+
+        paymentRepo.delete(payment);
+    }
+
+    // ✅ Get Payments by Payment Method
+    public List<PaymentResponseDTO> getPaymentsByMethod(PaymentMethod method) {
         try {
             return paymentRepo.findAll().stream()
-                    .filter(payment -> payment.getPaymentStatus() == status)
+                    .filter(payment -> payment.getPaymentMethod() == method)
                     .map(this::toDto)
                     .collect(Collectors.toList());
         } catch (Exception ex) {
-            throw new OperationFailedException("Retrieve payments by status", ex.getMessage());
+            throw new OperationFailedException("Retrieve payments by method", ex.getMessage());
         }
     }
 
-    // ✅ Delete Payment
-    @Transactional
-    public void deletePayment(Long id) {
+    // ✅ Get Payments by Payment Option (for online payments)
+    public List<PaymentResponseDTO> getPaymentsByOption(PaymentOption option) {
         try {
-            Payment payment = paymentRepo.findById(id)
-                    .orElseThrow(() -> new ResourceNotFoundException("Payment", "id", id));
-
-            // Check if payment is already completed
-            if (payment.getPaymentStatus() == PaymentStatus.COMPLETED) {
-                throw new OperationFailedException(
-                        "Delete payment",
-                        "Cannot delete completed payment"
-                );
-            }
-
-            paymentRepo.delete(payment);
+            return paymentRepo.findAll().stream()
+                    .filter(payment -> payment.getPaymentOption() != null && payment.getPaymentOption() == option)
+                    .map(this::toDto)
+                    .collect(Collectors.toList());
         } catch (Exception ex) {
-            throw new OperationFailedException("Delete payment", ex.getMessage());
+            throw new OperationFailedException("Retrieve payments by option", ex.getMessage());
         }
     }
+
 }
