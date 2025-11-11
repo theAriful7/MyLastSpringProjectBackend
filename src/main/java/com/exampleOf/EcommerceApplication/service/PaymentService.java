@@ -26,34 +26,31 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class PaymentService {
 
+
     private final PaymentRepo paymentRepo;
     private final OrderRepo orderRepo;
 
-
+    // ✅ Convert DTO → Entity
     public Payment toEntity(PaymentRequestDTO dto) {
+        // Get Order
         Order order = orderRepo.findById(dto.getOrderId())
                 .orElseThrow(() -> new ResourceNotFoundException("Order", "id", dto.getOrderId()));
-
-        // Validate amount
-        if (dto.getAmount() == null || dto.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new ValidationException("amount", "Payment amount must be greater than 0");
-        }
 
         // Validate payment method
         if (dto.getPaymentMethod() == null) {
             throw new ValidationException("paymentMethod", "Payment method is required");
         }
 
-        // If Online Payment, must include type
-        if (dto.getPaymentMethod() == PaymentMethod.ONLINE_PAYMENT && dto.getOnlinePaymentType() == null) {
-            throw new ValidationException("onlinePaymentType", "Online payment type is required when method is ONLINE_PAYMENT");
+        // If Online Payment, must include option
+        if (dto.getPaymentMethod() == PaymentMethod.ONLINE_PAYMENT && dto.getPaymentOption() == null) {
+            throw new ValidationException("paymentOption", "Payment option is required for online payments");
         }
 
         Payment payment = new Payment();
         payment.setOrder(order);
-        payment.setAmount(dto.getAmount());
+        payment.setAmount(order.getTotalAmount()); // ✅ Amount comes from Order
         payment.setPaymentMethod(dto.getPaymentMethod());
-        payment.setOnlinePaymentType(dto.getOnlinePaymentType());
+        payment.setPaymentOption(dto.getPaymentOption());
         payment.setTransactionId(dto.getTransactionId());
         payment.setPaymentStatus(PaymentStatus.PENDING);
         payment.setPaymentDate(LocalDateTime.now());
@@ -61,21 +58,21 @@ public class PaymentService {
         return payment;
     }
 
-
+    // ✅ Convert Entity → DTO
     public PaymentResponseDTO toDto(Payment payment) {
         PaymentResponseDTO dto = new PaymentResponseDTO();
         dto.setId(payment.getId());
         dto.setOrderId(payment.getOrder().getId());
         dto.setAmount(payment.getAmount());
         dto.setPaymentMethod(payment.getPaymentMethod());
-        dto.setOnlinePaymentType(payment.getOnlinePaymentType());
+        dto.setPaymentOption(payment.getPaymentOption());
         dto.setPaymentStatus(payment.getPaymentStatus());
         dto.setTransactionId(payment.getTransactionId());
         dto.setPaymentDate(payment.getPaymentDate());
         return dto;
     }
 
-
+    // ✅ Create Payment
     @Transactional
     public PaymentResponseDTO createPayment(PaymentRequestDTO dto) {
         try {
@@ -95,14 +92,14 @@ public class PaymentService {
         }
     }
 
-
+    // ✅ Get Payment by ID
     public PaymentResponseDTO getPaymentById(Long id) {
         Payment payment = paymentRepo.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Payment", "id", id));
         return toDto(payment);
     }
 
-
+    // ✅ Get Payment by Order ID
     public PaymentResponseDTO getPaymentByOrderId(Long orderId) {
         Payment payment = paymentRepo.findAll().stream()
                 .filter(p -> p.getOrder().getId().equals(orderId))
@@ -111,14 +108,14 @@ public class PaymentService {
         return toDto(payment);
     }
 
-
+    // ✅ Get All Payments
     public List<PaymentResponseDTO> getAllPayments() {
-        return paymentRepo.findAll()
-                .stream()
+        return paymentRepo.findAll().stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
 
+    // ✅ Update Payment Status
     @Transactional
     public PaymentResponseDTO updatePaymentStatus(Long id, PaymentStatus status) {
         Payment payment = paymentRepo.findById(id)
@@ -133,7 +130,7 @@ public class PaymentService {
         return toDto(updated);
     }
 
-
+    // ✅ Process Payment
     @Transactional
     public PaymentResponseDTO processPayment(Long id, String transactionId) {
         Payment payment = paymentRepo.findById(id)
@@ -147,16 +144,31 @@ public class PaymentService {
         return toDto(processed);
     }
 
-
+    // ✅ Get Payments by Status
     public List<PaymentResponseDTO> getPaymentsByStatus(PaymentStatus status) {
-        return paymentRepo.findAll()
-                .stream()
+        return paymentRepo.findAll().stream()
                 .filter(p -> p.getPaymentStatus() == status)
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
 
+    // ✅ Get Payments by Method
+    public List<PaymentResponseDTO> getPaymentsByMethod(PaymentMethod method) {
+        return paymentRepo.findAll().stream()
+                .filter(p -> p.getPaymentMethod() == method)
+                .map(this::toDto)
+                .collect(Collectors.toList());
+    }
 
+    // ✅ Get Payments by Option (Online)
+    public List<PaymentResponseDTO> getPaymentsByOption(PaymentOption option) {
+        return paymentRepo.findAll().stream()
+                .filter(p -> p.getPaymentOption() != null && p.getPaymentOption() == option)
+                .map(this::toDto)
+                .collect(Collectors.toList());
+    }
+
+    // ✅ Delete Payment
     @Transactional
     public void deletePayment(Long id) {
         Payment payment = paymentRepo.findById(id)
@@ -167,30 +179,6 @@ public class PaymentService {
         }
 
         paymentRepo.delete(payment);
-    }
-
-    // ✅ Get Payments by Payment Method
-    public List<PaymentResponseDTO> getPaymentsByMethod(PaymentMethod method) {
-        try {
-            return paymentRepo.findAll().stream()
-                    .filter(payment -> payment.getPaymentMethod() == method)
-                    .map(this::toDto)
-                    .collect(Collectors.toList());
-        } catch (Exception ex) {
-            throw new OperationFailedException("Retrieve payments by method", ex.getMessage());
-        }
-    }
-
-    // ✅ Get Payments by Payment Option (for online payments)
-    public List<PaymentResponseDTO> getPaymentsByOption(PaymentOption option) {
-        try {
-            return paymentRepo.findAll().stream()
-                    .filter(payment -> payment.getPaymentOption() != null && payment.getPaymentOption() == option)
-                    .map(this::toDto)
-                    .collect(Collectors.toList());
-        } catch (Exception ex) {
-            throw new OperationFailedException("Retrieve payments by option", ex.getMessage());
-        }
     }
 
 }
